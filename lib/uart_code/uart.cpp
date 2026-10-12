@@ -138,7 +138,7 @@ void task_receive_uart(void *arg) { //todo fixare busy waiting, interrupt quando
             bool do_start_over = false;
             size_t have = 1;
             while (have < frame_len) {
-                int rr = uart_read_bytes(selected_uart, buf + have, frame_len - have, portMAX_DELAY);
+                int rr = uart_read_bytes(selected_uart, buf + have, frame_len - have, pdMS_TO_TICKS(1000));
                 if (rr > 0) {
                     // Stampa i byte del corpo del messaggio
                     if (PRINT_RECEIVED_BYTES && SHOW_UART_COMMS_LOGS) {
