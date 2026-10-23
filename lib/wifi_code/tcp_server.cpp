@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "task_handler.h"
 
 static const char* TAG = "TcpServer";
 
@@ -31,8 +32,7 @@ namespace {
         int listen_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (listen_sock < 0) {
             ESP_LOGE(TAG, "Errore creazione socket: errno %d", errno);
-            vTaskDelete(nullptr);
-            return;
+            abort(); //fatal error, termina l'esecuzione e riavvia l'esp32
         }
 
         // Riutilizza la porta subito dopo una disconnessione
@@ -48,8 +48,7 @@ namespace {
         if (bind(listen_sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
             ESP_LOGE(TAG, "Bind fallita: errno %d", errno);
             close(listen_sock);
-            vTaskDelete(nullptr);
-            return;
+            abort(); //fatal error, termina l'esecuzione e riavvia l'esp32
         }
 
         // Put the socket in listening mode to accept incoming connection requests
@@ -124,7 +123,7 @@ void TcpServer::start(uint16_t port, TcpReceiveCallback on_receive, TcpConnectCa
     // Passa la porta come argomento al task tramite cast (evita allocazione heap)
     xTaskCreate(tcp_server_task, "tcp_server", TASK_STACK,
                 reinterpret_cast<void*>(static_cast<uintptr_t>(port)),
-                5, nullptr);
+                5, &tcp_server_task_handle);
 }
 
 void TcpServer::send(const std::string& data)

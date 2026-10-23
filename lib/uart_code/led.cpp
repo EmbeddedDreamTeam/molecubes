@@ -47,7 +47,7 @@ void task_blink_led_loop(void *arg){
     }
 }
 
-void wake_task_blink_led_once(int DELAY){
+void wake_task_blink_led_once(uint32_t DELAY){
     if(DELAY > 0){
         BLINK_ONCE_DELAY = DELAY;
     }
@@ -55,11 +55,11 @@ void wake_task_blink_led_once(int DELAY){
 }
 
 
-void set_loop_blink_delay(int DELAY){
+void set_loop_blink_delay(uint32_t DELAY){
     BLINK_LOOP_DELAY = DELAY;
 }
 
-void resume_loop_blink(int DELAY){
+void resume_loop_blink(uint32_t DELAY){
     if(DELAY > 0){
         BLINK_LOOP_DELAY = DELAY;
     }

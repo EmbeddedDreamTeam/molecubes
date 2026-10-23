@@ -256,43 +256,87 @@ def main() -> None:
         sys.exit(0)
         
     else:
-        print("\n=======================================================")
-        print(f" MODALITÀ MANUALE ATTIVA (Configurato per {num_servos} servi)")
-        print(f" Inserisci {num_servos} angoli separati da spazio.")
-        print(" Opzionale: aggiungi Vel, Acc e Jerk alla fine per sovrascrivere i default.")
-        print(f" Esempi per {num_servos} servi:")
-        print(f"   Solo angoli:   {' '.join(['90'] * num_servos)}")
-        print(f"   Con Vel:       {' '.join(['90'] * num_servos)} 3.5")
-        print(f"   Con Vel+Acc:   {' '.join(['90'] * num_servos)} 3.5 200")
-        print(" Scrivi 'quit' per uscire.")
-        print("=======================================================\n")
-        
         try:
             while True:
+                
+                print("\n=======================================================")
+                print(f"Numero di moduli collegati: {num_servos}")
+                print("Scegli l'operazione da fare:")
+                print(" - 1: Inserire comandi manualmente")
+                print(" - 2: Caricare un file di comandi da eseguire")
+                print(" - q: Uscire")
+                # print(f" Inserisci {num_servos} angoli separati da spazio.")
+                # print(" Opzionale: aggiungi Vel, Acc e Jerk alla fine per sovrascrivere i default.")
+                # print(f" Esempi per {num_servos} servi:")
+                # print(f"   Solo angoli:   {' '.join(['90'] * num_servos)}")
+                # print(f"   Con Vel:       {' '.join(['90'] * num_servos)} 3.5")
+                # print(f"   Con Vel+Acc:   {' '.join(['90'] * num_servos)} 3.5 200")
+                # print(" Scrivi 'quit' per uscire.")
+                # print("=======================================================\n")
                 raw = input("> ").strip()
+                
 
                 if raw.lower() in ("quit", "exit", "q"):
                     print("Chiudo la connessione.")
                     sock.close()
                     sys.exit(0)
-
+                elif raw.lower() in ("1"):
+                    print(f" Numero di moduli collegati: {num_servos}")
+                    print("Lista di comandi accettati:")
+                    print("- G6 [R] N[posizione_modulo] P[angolo in gradi] [Svelocità(rad/s)] [Aaccelerazione(rad/s^2)] [Jjerk(rad/s^3)]")
+                    print("    La sezione [N P S A J] può essere ripetuta più volte dopo G6 per comandare più moduli contemporaneamente.")
+                    print("    S, A e J sono parametri opzionali. Se omessi, verranno usati i valori di default. Quando usati devono essere" \
+                    "specificati nell'ordine corretto, ma non necessariamente tutti.")
+                    print("    Esempio: G6 N0 P90.0 S1.0 A2.0 J3.0 N1 P45.0 J1.5 N2 P45.0 J1.5 N3 P45.0 J1.5")
+                    print("- M222 [nuova velocità di default(rad/s)]")
+                    print("- M204 [nuova accelerazione di default(rad/s^2)]")
+                    print("- M205 [nuovo jerk di default(rad/s^3)]")
+                    print("    Nota: Questi comandi sono intesi per modificare i valori di default una volta sola, non" \
+                    "per cambiare i parametri per ogni comando specifico")
+                    print("- G4 [attesa in millisecondi]")
+                    print("- M24")
+                    print("    Start, avvia la sequenza caricata")
+                    print("- M25")
+                    print("    Stop, interrompe la sequenza in esecuzione. Nota una volta che la sequenza termina bisogna "\
+                    "inviare nuovamente il comando M24 per eseguire una nuova sequenza")
+                    print("- M505")
+                    print("    Svuota il buffer dei comandi in esecuzione.")
+                    print("- q: torna al menù precedente")
+                    while True:
+                        raw = input("Inserisci il comando da caricare > ").strip()
+                        if raw.lower() == "q":
+                            break
+                        else:
+                            message = raw + "\n"
+                            sock.sendall(message.encode("utf-8"))
+                elif raw.lower() in ("2"):
+                    while True:
+                        file_path = input("Inserisci il percorso del file di comandi da eseguire > ").strip()
+                        try:
+                            with open(file_path, "r") as f:
+                                commands = f.readlines()
+                                for cmd in commands:
+                                    cmd = cmd.strip()
+                                    if cmd and not cmd.startswith("#"):  # Ignora righe vuote e commenti
+                                        message = cmd + "\n"
+                                        ack_event.clear()  # Resetta l'evento di ack
+                                        sock.sendall(message.encode("utf-8"))
+                                        ack_event.wait(timeout=5)  # attende l'ack prima di inviare il nuovo comando
+                                        time.sleep(0.3) # attesa per evitare di triggerare il WDT
+                        except FileNotFoundError:
+                            print(f"[error] File non trovato: {file_path}")
+                            continue
+                        except Exception as e:
+                            print(f"[error] Errore durante la lettura del file: {e}")
+                            continue
+                        break
+                    print("Vuoi eseguire la sequenza? (y/n)")
+                    choice = input().strip().lower()
+                    if choice == "y":
+                        sock.sendall("M24\n".encode("utf-8"))
                 if not raw:
                     continue
 
-                try:
-                    user_values = [float(x) for x in raw.split()]
-                except ValueError:
-                    print("[error] Formato non valido. Inserisci solo numeri separati da spazio.")
-                    continue
-
-                payload = build_payload(user_values, num_servos, is_sequence=False)
-                
-                if payload is None:
-                    print(f"[error] Numero errato di parametri. Riprova.")
-                    continue
-                
-                message = payload + "\n"
-                sock.sendall(message.encode("utf-8"))
 
         except (KeyboardInterrupt, EOFError):
             print("\nChiudo la connessione.")

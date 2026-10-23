@@ -72,3 +72,5 @@ void WifiManager::init_ap(const std::string& ssid, const std::string& password)
     ESP_LOGI(TAG, "Access Point avviato — SSID: '%s'  IP: 192.168.4.1",
              ssid.c_str());
 }
+
+

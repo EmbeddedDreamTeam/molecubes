@@ -10,24 +10,24 @@
 
 #include "msg_structs.h"
 #include "utils_uart_comms.h"
+#include "id_type.h"
 
 
-
-int MASTER_ID = UNKNOWN_ID;
-int SELF_ID = UNKNOWN_ID;
-int SLAVE_ID = UNKNOWN_ID;
+uint8_t mac[6];
+std::atomic<module_id_t> MASTER_ID = UNKNOWN_ID;
+std::atomic<module_id_t> SELF_ID = UNKNOWN_ID;
+std::atomic<module_id_t> SLAVE_ID = UNKNOWN_ID;
 
 bool BLINK_ON_RECEIVE_MSG = false;
 bool BLINK_ON_SEND_MSG = false;
 bool PRINT_RECEIVED_BYTES = false;
-bool SHOW_UART_COMMS_LOGS = true;
+bool SHOW_UART_COMMS_LOGS = false;
 
 // TaskHandle_t h_task_blink_led_once;
 //code x tutti i tipi di comandi diversi
 QueueHandle_t h_queue_command_01;
-QueueHandle_t h_queue_command_02;
+QueueHandle_t h_queue_debug;
 QueueHandle_t h_queue_handshake;
-QueueHandle_t h_queue_report;
 QueueHandle_t h_queue_servo;
 
 //code x inviare messaggi

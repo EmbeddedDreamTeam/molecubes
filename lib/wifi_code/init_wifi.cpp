@@ -25,20 +25,18 @@ void init_wifi(){
     WifiManager::init_ap(AP_SSID, AP_PASSWORD);
 
     // Initialize the protocol and define what to do with the received motor data
-    ProtocolManager::init(1, [](const std::vector<float>& angles, 
-                                const std::vector<float>& velocities, 
-                                const std::vector<float>& accelerations, 
-                                const std::vector<float>& jerks) { //! Riceve i 4 vettori
+    ProtocolManager::init(1, [](const Command& command) { //! Riceve i vettori di parametri e valori
         
         ESP_LOGI(TAG, "Comandi servo ricevuti:");
-        for (int i = 0; i < (int)angles.size(); i++) {
+        for (int i = 0; i < (int)command.args.size(); i++) {
             // Uso %.1f perché i valori sono float. Modifica il numero dopo il punto per più o meno decimali.
-            ESP_LOGI(TAG, "  Servo %d → Angolo: %.1f°, Vel: %.1f, Acc: %.1f, Jerk: %.1f", 
-                     i, angles[i], velocities[i], accelerations[i], jerks[i]);
+            ESP_LOGI(TAG, " Comando: %s", gcodeToString[command.gcode].c_str());
         }
 
         // Forward parsed instructions to the UART bridge for physical motor control
-        convert_servo_instructions(angles, velocities, accelerations, jerks);
+        if (convert_servo_instructions(command) != ESP_OK) {
+            reply("ERROR — unable to process command");
+        }
     });
 
     // Start the TCP server and define the connection behavior
