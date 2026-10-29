@@ -1,12 +1,17 @@
 #include "servo_motion.h"
+#include "esp_attr.h"
 #include <math.h>
 
 /// @brief  Numerically estimate the stopping distance with jerk and acceleration limits.
 /// This function simulates the deceleration with time steps as close as possible to the control loop frequency.
-float decel_distance_sim(float v_init, float acc_init, float a_max, float j_max, float v_max) {
+/// IRAM_ATTR places this function in IRAM for faster execution
+float IRAM_ATTR decel_distance_sim(float v_init, float acc_init, float a_max, float j_max, float v_max) {
     if (v_init <= 0.0f) return 0.0f;
 
     const float dt = 0.020f; 
+    const float half_dt=0.010f;
+
+    const float inv_2_j_max = 1.0f / (2.0f * j_max);
     // starting speed and acceleration
     float v = v_init;
     float a = acc_init;
@@ -31,7 +36,7 @@ float decel_distance_sim(float v_init, float acc_init, float a_max, float j_max,
         }
         float v_next;
         float a_next;
-        if (a<=0.0f&&v <= (a * a) / (2.0f * j_max)) {
+        if (a<=0.0f&&v <= (a * a) * inv_2_j_max) {
             //passaggio alla fase di jerk_down
             j_dn=true;
         }
@@ -40,7 +45,7 @@ float decel_distance_sim(float v_init, float acc_init, float a_max, float j_max,
             a_next = a + j * dt;
             if (a_next < target_a) a_next = target_a;
             //v_next = v + a_next * dt; // uso l'accelerazione a scaglioni perchè è quello che fa la task reale
-            v_next = v + a * dt + 0.5f * (a_next - a) * dt; // trapezoidal integration of acceleration
+            v_next = v + a * dt + (a_next - a) * half_dt; // trapezoidal integration of acceleration
             // clamping velocity to max
             // per sicurezza ma non dovrebbe succedere
             if (v_next > v_max) v_next = v_max;
