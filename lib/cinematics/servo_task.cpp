@@ -33,6 +33,7 @@ void move_servo_speed_task_state_machine(void *pvParameters) {
     bool backlash_compensation=false;
     bool restart;
     float appo;
+    float d_stop_curr=-1; // distanza necessaria per fermarsi
     //flag che indica se è stato ricevuto un nuovo comando nella direzione opposta a quello in esecuzione
     bool reverse=false; 
     while (1) {
@@ -41,6 +42,7 @@ void move_servo_speed_task_state_machine(void *pvParameters) {
         // (the third parameter is xTicksToWait that specify the maximum amount of time the task should
         // be blocked waiting for a command)
         if (!xQueueReceive(h_queue_servo, &msg, portMAX_DELAY)) continue;
+        d_stop_curr=-1; // reset the stopping distance for the new command
         ESP_LOGI("Servo", "Received new command: target=%.4f, speed=%.3f, acc=%.3f, jerk=%.3f", cmd.target_rad, cmd.speed, cmd.acc, cmd.jerk);
         cmd=sanitize_servo_command(msg);
         servo_data.moving.store(true);
@@ -90,7 +92,6 @@ void move_servo_speed_task_state_machine(void *pvParameters) {
             TickType_t now;
             float dt;
             float rem;
-            float d_stop_curr; // distanza necessaria per fermarsi
             float d_trig; // distanza di trigger per passare alla fase di decelerazione
 
             // main loop with state machine for motion profiling
@@ -98,6 +99,7 @@ void move_servo_speed_task_state_machine(void *pvParameters) {
                  // if there is a new command in the queue, preempt the current motion and start the new one immediately
                 Msg* next=nullptr;
                 if (xQueueReceive(h_queue_servo, &next, 0) == pdTRUE) {
+                    d_stop_curr=-1; // reset the stopping distance for the new command
                     servo_data.current_pos.store(pos);
                     cmd = sanitize_servo_command(next);
                     // seting the flag to restart the FSM
@@ -130,12 +132,14 @@ void move_servo_speed_task_state_machine(void *pvParameters) {
                 // in caso di overshoot il servo si fermerà anche se la velocità non è 0
                 // in caso di undershoot la velocità non scenderà mai sotto un valore minimo per raggiungere
                 // in modo fluido il target
-                if (vel < 0.0f) {
-                    //in questo modo viene calcolata la distanza di arresto prima di poter invertire la direzione
-                    //d_stop_curr è negativa, in questo modo rem <= d_trig non sarà mai vero
-                    d_stop_curr = -decel_distance_with_acc(-vel, -acc, a, j, v);
-                } else {
-                    d_stop_curr = decel_distance_with_acc(vel, acc, a, j, v);
+                if(d_stop_curr<0.0f){
+                    if (vel < 0.0f) {
+                        //in questo modo viene calcolata la distanza di arresto prima di poter invertire la direzione
+                        //d_stop_curr è negativa, in questo modo rem <= d_trig non sarà mai vero
+                        d_stop_curr = -decel_distance_with_acc(-vel, -acc, a, j, v);
+                    } else {
+                        d_stop_curr = decel_distance_with_acc(vel, acc, a, j, v);
+                    }
                 }
                 d_trig = d_stop_curr;
                 // in questo modo se durante l'esecuzione la fase cambia, vengono calcolati subito i nuovi parametri
@@ -331,6 +335,15 @@ void move_servo_speed_task_state_machine(void *pvParameters) {
                 else{
                     set_servo_pos(target);
                     done = true;
+                }
+                //la distanza di arresto viene calcolata al termine di ogni ciclo, in questo modo non si rischiano ritardi nell'aggiornamento
+                //del duty cycle successivo
+                if (vel < 0.0f) {
+                    //in questo modo viene calcolata la distanza di arresto prima di poter invertire la direzione
+                    //d_stop_curr è negativa, in questo modo rem <= d_trig non sarà mai vero
+                    d_stop_curr = -decel_distance_with_acc(-vel, -acc, a, j, v);
+                } else {
+                    d_stop_curr = decel_distance_with_acc(vel, acc, a, j, v);
                 }
                 //metodo preciso per risvegliare la task
                 if (!done) vTaskDelayUntil(&xLastWake, xFrequency);
